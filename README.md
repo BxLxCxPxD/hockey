@@ -130,7 +130,7 @@ class MainMenuState(State):
 
 class ListItemsState(State):
     async def handle(self, message):
-        # ... (обработка состояния списка товаров)
+        # ... ()
 
 # Другие конкретные состояния аналогичны...
 ```
@@ -138,9 +138,9 @@ class ListItemsState(State):
 В контексте, представленном в вашем боте или его отдельной части, происходит управление переходами между состояниями.
 
 ```python
-class AddProductState(State):
+class AddPlayer(State):
     async def handle(self, message):
-        # ... (обработка добавления продукта)
+        # ... ()
         global current_state
         current_state = ProductEntryState()
 
@@ -149,9 +149,9 @@ class AddProductState(State):
 В различных обработчиках сообщений (например, при вводе названия продукта) происходит переключение состояний с использованием глобальной переменной current_state.
 
 ```python
-class ProductEntryState(State):
+class PlayerEntry(State):
     async def handle(self, message):
-        # ... (обработка ввода названия продукта)
+        # ... (обработка ввода)
         global current_state
         current_state = MainMenuState()
         await current_state.handle(message)
