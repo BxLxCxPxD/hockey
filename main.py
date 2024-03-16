@@ -1,141 +1,149 @@
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import ParseMode
-from aiogram.utils import executor
+import typing
 
-TOKEN = "6052247347:AAFxYJoiwOJhS9Kk3w_lumhKFrCxp7Cwmjc"
-bot = Bot(token=TOKEN)
-dp = Dispatcher(bot)
-
-products = []
+from . import base
+from . import fields
+from .web_app_info import WebAppInfo
 
 
-class State:
-    def handle(self, message):
-        pass
+class KeyboardButtonPollType(base.TelegramObject):
+    """
+    This object represents type of a poll, which is allowed to be created and sent when the corresponding button is pressed.
 
-class MainMenuState(State):
-    async def handle(self, message):
-        keyboard_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        buttons = ["Выбрать игроков", "Выбрать событие"]
-        keyboard_markup.add(*buttons)
+    https://core.telegram.org/bots/api#keyboardbuttonpolltype
+    """
+    type: base.String = fields.Field()
 
-        await message.answer("Выберите действие:", reply_markup=keyboard_markup)
+    def __init__(self, type: typing.Optional[base.String] = None):
+        super(KeyboardButtonPollType, self).__init__(type=type)
 
-class ListItemsState(State):
-    async def handle(self, message):
-        keyboard_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        buttons = ["Нападающие", "Защитники"]
-        keyboard_markup.add(*buttons)
 
-        await message.answer("Выберите позиции игроков", reply_markup=keyboard_markup)
+class ReplyKeyboardMarkup(base.TelegramObject):
+    """
+    This object represents a custom keyboard with reply options
+    (see https://core.telegram.org/bots#keyboards to bots for details
+    and examples).
 
-class AddProductState(State):
-    async def handle(self, message):
-        await message.answer("Введите номер игрока:")
+    https://core.telegram.org/bots/api#replykeyboardmarkup
+    """
+    keyboard: 'typing.List[typing.List[KeyboardButton]]' = fields.ListOfLists(base='KeyboardButton', default=[])
+    resize_keyboard: base.Boolean = fields.Field()
+    one_time_keyboard: base.Boolean = fields.Field()
+    input_field_placeholder: base.String = fields.Field()
+    selective: base.Boolean = fields.Field()
 
-        global current_state
-        current_state = ProductEntryState()
+    def __init__(self, keyboard: 'typing.List[typing.List[KeyboardButton]]' = None,
+                 resize_keyboard: base.Boolean = None,
+                 one_time_keyboard: base.Boolean = None,
+                 input_field_placeholder: base.String = None,
+                 selective: base.Boolean = None,
+                 row_width: base.Integer = 3,
+                 conf=None):
+        if conf is None:
+            conf = {}
+        super().__init__(
+            keyboard=keyboard,
+            resize_keyboard=resize_keyboard,
+            one_time_keyboard=one_time_keyboard,
+            input_field_placeholder=input_field_placeholder,
+            selective=selective,
+            conf={'row_width': row_width, **conf},
+        )
 
-class ProductEntryState(State):
-    async def handle(self, message):
-        global products
-        product_name = message.text.strip()  
-        words = product_name.split()
+    @property
+    def row_width(self):
+        return self.conf.get('row_width', 3)
 
-        if len(words) <= 5:
-            products.append(product_name)
-            await message.answer(f"Игрок '{product_name}' выбран!.")
-            
-            global current_state
-            current_state = MainMenuState()
-            await current_state.handle(message)
+    @row_width.setter
+    def row_width(self, value):
+        self.conf['row_width'] = value
+
+    def add(self, *args):
+        """
+        Add buttons
+
+        :param args:
+        :return: self
+        :rtype: :obj:`types.ReplyKeyboardMarkup`
+        """
+        row = []
+        for index, button in enumerate(args, start=1):
+            row.append(button)
+            if index % self.row_width == 0:
+                self.keyboard.append(row)
+                row = []
+        if row:
+            self.keyboard.append(row)
+        return self
+
+    def row(self, *args):
+        """
+        Add row
+
+        :param args:
+        :return: self
+        :rtype: :obj:`types.ReplyKeyboardMarkup`
+        """
+        btn_array = [button for button in args]
+        self.keyboard.append(btn_array)
+        return self
+
+    def insert(self, button):
+        """
+        Insert button to last row
+
+        :param button:
+        :return: self
+        :rtype: :obj:`types.ReplyKeyboardMarkup`
+        """
+        if self.keyboard and len(self.keyboard[-1]) < self.row_width:
+            self.keyboard[-1].append(button)
         else:
-            await message.answer("Ошибка ввода!")
+            self.add(button)
+        return self
 
-class ShowProductsState(State):
-    async def handle(self, message):
-        global products
-        if not products:
-            await message.answer("Нет таких игроков")
-        else:
-            products_text = "\n".join(products)
-            await message.answer(f"Список игроков:\n{products_text}")
 
-class RemoveProductsState(State):
-    async def handle(self, message):
-        global products
-        products = []  # Очистить список продуктов
-        await message.answer("Все игроки удалены.")
+class KeyboardButton(base.TelegramObject):
+    """
+    This object represents one button of the reply keyboard.
+    For simple text buttons String can be used instead of this object to specify text of the button.
+    Optional fields request_contact, request_location, and request_poll are mutually exclusive.
+    Note: request_contact and request_location options will only work in Telegram versions released after 9 April, 2016.
+    Older clients will ignore them.
+    Note: request_poll option will only work in Telegram versions released after 23 January, 2020.
+    Older clients will receive unsupported message.
 
-# Начальное состояние
-current_state = MainMenuState()
+    https://core.telegram.org/bots/api#keyboardbutton
+    """
+    text: base.String = fields.Field()
+    request_contact: base.Boolean = fields.Field()
+    request_location: base.Boolean = fields.Field()
+    request_poll: KeyboardButtonPollType = fields.Field()
+    web_app: WebAppInfo = fields.Field(base=WebAppInfo)
 
-# Шаблон состояния для сортировки покупок
-class SortPurchaseState(State):
-    async def handle(self, message):
-        keyboard_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        buttons = ["Важные", "Купленные", "Общее", "Назад", "Удалить лишние товары"]
-        keyboard_markup.add(*buttons)
+    def __init__(self, text: base.String,
+                 request_contact: base.Boolean = None,
+                 request_location: base.Boolean = None,
+                 request_poll: KeyboardButtonPollType = None,
+                 web_app: WebAppInfo = None,
+                 **kwargs):
+        super(KeyboardButton, self).__init__(text=text,
+                                             request_contact=request_contact,
+                                             request_location=request_location,
+                                             request_poll=request_poll,
+                                             web_app=web_app,
+                                             **kwargs)
 
-        await message.answer("Выберите категорию для сортировки:", reply_markup=keyboard_markup)
 
-# Обработка команды начать сортировку покупок
-@dp.message_handler(lambda message: message.text == "Отсортировать покупку")
-async def process_sort_purchase(message: types.Message):
-    global current_state
-    current_state = SortPurchaseState()
-    await current_state.handle(message)
+class ReplyKeyboardRemove(base.TelegramObject):
+    """
+    Upon receiving a message with this object, Telegram clients will remove the current custom keyboard
+    and display the default letter-keyboard. By default, custom keyboards are displayed until a new keyboard is sent by a bot.
+    An exception is made for one-time keyboards that are hidden immediately after the user presses a button (see ReplyKeyboardMarkup).
 
-# Обработка сортировки по категориям
-@dp.message_handler(lambda message: message.text in ["Важные", "Купленные", "Общее", "Удалить лишние товары"])
-async def process_sort_category(message: types.Message):
-    global current_state
-    await message.answer(f"Вы выбрали сортировку по категории: {message.text}")
-    current_state = MainMenuState()
-    await current_state.handle(message)
+    https://core.telegram.org/bots/api#replykeyboardremove
+    """
+    remove_keyboard: base.Boolean = fields.Field(default=True)
+    selective: base.Boolean = fields.Field()
 
-# Обработка команд связанных с главным меню
-@dp.message_handler(commands=['start', 'help'])
-async def send_welcome(message: types.Message):
-    global current_state
-    await current_state.handle(message)
-
-# Обработка команды вернуться в главное меню
-@dp.message_handler(lambda message: message.text == "Проконтролировать покупку")
-async def process_purchase_control(message: types.Message):
-    global current_state
-    current_state = MainMenuState()
-    await current_state.handle(message)
-
-# Обработка команды составить список товаров
-@dp.message_handler(lambda message: message.text == "Составить список товаров")
-async def process_list_items(message: types.Message):
-    global current_state
-    current_state = ListItemsState()
-    await current_state.handle(message)
-
-# Обработка команды добавить продукт
-@dp.message_handler(lambda message: message.text == "Выбрать игроков")
-async def process_add_product(message: types.Message):
-    global current_state
-    current_state = AddProductState()
-    await current_state.handle(message)
-
-# Обработка команды показать все продукты
-@dp.message_handler(lambda message: message.text == "Выбрать событие")
-async def process_show_products(message: types.Message):
-    global current_state
-    current_state = ShowProductsState()
-    await current_state.handle(message)
-
-# Обработка команды удалить все продукты
-@dp.message_handler(lambda message: message.text == "Удалить все продукты")
-async def process_remove_products(message: types.Message):
-    global current_state
-    current_state = RemoveProductsState()
-    await current_state.handle(message)
-
-# Запуск бота
-if __name__ == '__main__':
-    from aiogram import executor
-    executor.start_polling(dp, skip_updates=True)
+    def __init__(self, selective: base.Boolean = None):
+        super(ReplyKeyboardRemove, self).__init__(remove_keyboard=True, selective=selective)
