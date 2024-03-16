@@ -1,0 +1,7 @@
+.venv
+
+.venv/bin/activate
+.Lib
+.Include
+.Scripts
+```
